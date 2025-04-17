@@ -2,13 +2,33 @@
 requires = [ "setuptools>=61.0", "wheel" ]
 build-backend = "setuptools.build_meta"
 
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["nvidia_variant_provider*"]
+exclude = ["tests*", "*.tests", "*.tests.*"]
+namespaces = true
 
 [project]
 name = "nvidia-variant-provider"
 version = "1.0.0"
 description = "A Variant Provider Plugin for the `nvidia` namespace"
 dependencies = [ "variantlib" ]
-
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
+    { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
+]
+maintainers = [
+    { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
+    { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
+]
 
 [project.entry-points."variantlib.plugins"]
 nvidia_variant_provider = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"
