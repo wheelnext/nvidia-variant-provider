@@ -6,8 +6,10 @@ from functools import cached_property
 from packaging import version
 
 from nvidia_variant_provider.detect_cuda import CudaEnvironment
-from nvidia_variant_provider.detect_cuda import get_cuda_version
+from nvidia_variant_provider.detect_cuda import get_cuda_environment
 from variantlib.models.provider import VariantFeatureConfig
+
+LATEST_CUDA_MINOR_VERSIONS = {11: 8, 12: 8}
 
 
 class NvidiaVariantPlugin:
@@ -17,18 +19,16 @@ class NvidiaVariantPlugin:
         """Lookup the system to decide what `nvidia :: drivers` is locally supported.
         Returns a list of strings in order of priority."""
 
-        if self.cuda_environment is None:
+        if self.cuda_driver_version is None:
             return None
 
-        driver_version = version.parse(self.cuda_environment.version)
+        driver_version = version.parse(self.cuda_driver_version)
 
-        # Descending list (i.e. priority) => 12.4, 12.3, 12.2, ..., 12.0
-        # Backward compatibility only for now
-        # TODO: Add forward compability when it makes sense.
+        # Descending list (i.e. priority) => 12.4, 12.3, 12.2, ..., 12.0, 12
         return [
             f"{driver_version.major}.{minor}"
-            for minor in range(driver_version.minor, stop=-1, step=-1)
-        ]
+            for minor in range(driver_version.minor, -1, -1)
+        ] + [str(driver_version.major)]
 
     def get_supported_configs(self) -> list[VariantFeatureConfig]:
         keyconfigs = []
@@ -44,15 +44,23 @@ class NvidiaVariantPlugin:
             VariantFeatureConfig(
                 name="driver",
                 values=(
-                    [f"11.{minor}" for minor in range(1, 9)]
-                    + [f"12.{minor}" for minor in range(1, 9)]
+                    [
+                        f"{major}.{minor}"
+                        for major in LATEST_CUDA_MINOR_VERSIONS
+                        for minor in range(LATEST_CUDA_MINOR_VERSIONS[major] + 1)
+                    ]
+                    + [str(major) for major in LATEST_CUDA_MINOR_VERSIONS]
                 ),
             )
         ]
 
     @cached_property
     def cuda_environment(self) -> CudaEnvironment | None:
-        if driver_ver := os.environ.get("NV_PROVIDER_FORCE_DRIVER_VERSION") is not None:
+        return get_cuda_environment()
+
+    @property
+    def cuda_driver_version(self) -> str | None:
+        if driver_ver := os.environ.get("NV_PROVIDER_FORCE_DRIVER_VERSION"):
             return driver_ver
 
-        return get_cuda_version()
+        return self.cuda_environment.version if self.cuda_environment else None

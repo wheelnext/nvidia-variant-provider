@@ -21,7 +21,7 @@ class CudaEnvironment:
 
 
 @functools.cache
-def get_cuda_version() -> CudaEnvironment | None:
+def get_cuda_environment() -> CudaEnvironment | None:
     # Do not inherit file descriptors and handles from the parent process.
     # The `fork` start method should be considered unsafe as it can lead to
     # crashes of the subprocess. The `spawn` start method is preferred.
