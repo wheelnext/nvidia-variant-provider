@@ -17,7 +17,7 @@ namespaces = true
 name = "nvidia-variant-provider"
 version = "1.0.0"
 description = "A Variant Provider Plugin for the `nvidia` namespace"
-dependencies = [ "variantlib" ]
+dependencies = [ "packaging", "variantlib" ]
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
