@@ -15,7 +15,7 @@ namespaces = true
 
 [project]
 name = "nvidia-variant-provider"
-version = "1.0.0"
+version = "0.0.1"
 description = "A Variant Provider Plugin for the `nvidia` namespace"
 dependencies = [ "packaging", "variantlib" ]
 readme = "README.md"
