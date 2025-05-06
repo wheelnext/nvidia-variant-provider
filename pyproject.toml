@@ -29,6 +29,3 @@ maintainers = [
     { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
     { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
 ]
-
-[project.entry-points."variantlib.plugins"]
-nvidia_variant_provider = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"
