@@ -12,6 +12,9 @@ from variantlib.models.provider import VariantFeatureConfig
 LATEST_CUDA_MINOR_VERSIONS = {11: 8, 12: 8}
 
 
+DRIVER_KEY = "cuda"
+
+
 class NvidiaVariantPlugin:
     namespace = "nvidia"
 
@@ -35,14 +38,14 @@ class NvidiaVariantPlugin:
 
         # Top Priority
         if (values := self._get_supposer_driver()) is not None:
-            keyconfigs.append(VariantFeatureConfig(name="driver", values=values))
+            keyconfigs.append(VariantFeatureConfig(name=DRIVER_KEY, values=values))
 
         return keyconfigs
 
     def get_all_configs(self) -> list[VariantFeatureConfig]:
         return [
             VariantFeatureConfig(
-                name="driver",
+                name=DRIVER_KEY,
                 values=(
                     [
                         f"{major}.{minor}"
