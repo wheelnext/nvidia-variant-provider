@@ -1,17 +1,6 @@
 [build-system]
-requires = [ "setuptools>=61.0", "wheel" ]
-build-backend = "setuptools.build_meta"
-
-[tool.distutils.bdist_wheel]
-universal = true
-
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-include = ["nvidia_variant_provider*"]
-exclude = ["tests*", "*.tests", "*.tests.*"]
-namespaces = true
+requires = [ "flit_core >=3.11,<4" ]
+build-backend = "flit_core.buildapi"
 
 [project]
 name = "nvidia-variant-provider"
@@ -29,3 +18,7 @@ maintainers = [
     { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
     { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
 ]
+
+
+[project.entry-points.variant_plugins]
+nvidia_variant_provider = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"
