@@ -1,5 +1,3 @@
-#!/usr/bin/env python
+"A Variant Provider Plugin for the `nvidia` namespace"
 
-import importlib.metadata
-
-__version__ = importlib.metadata.version("nvidia_variant_provider")
+__version__ = "0.0.1"

@@ -4,8 +4,6 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "nvidia-variant-provider"
-version = "0.0.1"
-description = "A Variant Provider Plugin for the `nvidia` namespace"
 dependencies = [ "packaging", "variantlib" ]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -18,6 +16,7 @@ maintainers = [
     { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
     { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
 ]
+dynamic = ["version", "description"]
 
 
 [project.entry-points.variant_plugins]
