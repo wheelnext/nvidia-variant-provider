@@ -4,150 +4,90 @@
 
 from __future__ import annotations
 
-import ctypes
+import contextlib
 import functools
-import itertools
-import multiprocessing
-import os
-import platform
-from contextlib import suppress
 from dataclasses import dataclass
+
+import pynvml
+
+NVIDIA_GPU_ARCHITECTURE = {
+    pynvml.NVML_DEVICE_ARCH_KEPLER: "Kepler",  # example: GeForce GTX 680, GeForce GTX 780, Tesla K80
+    pynvml.NVML_DEVICE_ARCH_MAXWELL: "Maxwell",  # example: GeForce GTX 750 Ti, GeForce GTX 980, Tesla M40
+    pynvml.NVML_DEVICE_ARCH_PASCAL: "Pascal",  # example: GeForce GTX 1080 Ti, GeForce GTX 1060, Tesla P100
+    pynvml.NVML_DEVICE_ARCH_VOLTA: "Volta",  # example: Tesla V100, Titan V
+    pynvml.NVML_DEVICE_ARCH_TURING: "Turing",  # example: GeForce RTX 2080 Ti, GeForce GTX 1660 Ti, Tesla T4
+    pynvml.NVML_DEVICE_ARCH_AMPERE: "Ampere",  # example: GeForce RTX 3080, GeForce RTX 3060, A100
+    pynvml.NVML_DEVICE_ARCH_ADA: "Ada",  # example: GeForce RTX 4090, GeForce RTX 4080, L40
+    pynvml.NVML_DEVICE_ARCH_HOPPER: "Hopper",  # example: H100, H800
+    pynvml.NVML_DEVICE_ARCH_BLACKWELL: "Blackwell",  # example: B100
+    pynvml.NVML_DEVICE_ARCH_T23X: "Tegra",  # Tegra SKUs
+    pynvml.NVML_DEVICE_ARCH_UNKNOWN: "Unknown",  # Error
+}
 
 
 @dataclass(frozen=True, order=True)
 class CudaEnvironment:
-    version: str
+    system_driver_versions: str | None
+    cuda_driver_version: str | None
+    gpu_families: list[str]
     architectures: list[str]
 
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def from_system(cls) -> CudaEnvironment | None:
+        """Get the CUDA environment from the system."""
+        try:
+            pynvml.nvmlInit()
 
-@functools.cache
-def get_cuda_environment() -> CudaEnvironment | None:
-    # Do not inherit file descriptors and handles from the parent process.
-    # The `fork` start method should be considered unsafe as it can lead to
-    # crashes of the subprocess. The `spawn` start method is preferred.
-    context = multiprocessing.get_context("spawn")
-    queue = context.SimpleQueue()
-    # Spawn a subprocess to detect the CUDA version
-    detector = context.Process(
-        target=_cuda_detector_target,
-        args=(queue,),
-        name="CUDA driver version detector",
-        daemon=True,
-    )
-    try:
-        detector.start()
-        detector.join(timeout=60.0)
-    finally:
-        # Always cleanup the subprocess
-        detector.kill()  # requires Python 3.7+
+            # UMD / KMD Version
+            system_driver_version = pynvml.nvmlSystemGetDriverVersion()
 
-    if queue.empty():
-        return None
+            # CUDA Driver
+            cuda_driver_version = None
+            try:
+                cuda_driver_version = str(pynvml.nvmlSystemGetCudaDriverVersion_v2())
+            except pynvml.NVMLError:
+                # Fallback to the v1 API if the v2 API is not available
+                with contextlib.suppress(pynvml.NVMLError):
+                    cuda_driver_version = str(pynvml.nvmlSystemGetCudaDriverVersion())
 
-    result: str | None = queue.get()
+            if cuda_driver_version is not None:
+                with contextlib.suppress(ValueError, TypeError):
+                    cuda_driver_version = (
+                        f"{int(cuda_driver_version) // 1000}."
+                        f"{(int(cuda_driver_version) % 1000) // 10}"
+                    )
 
-    if result is None:
-        return result
+            gpu_families: set[str] = set()
+            architectures: set[str] = set()
 
-    driver_version, architectures = result.split(";")
-    return CudaEnvironment(driver_version, architectures.split(","))
+            for device_id in range(pynvml.nvmlDeviceGetCount()):
+                device = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+                with contextlib.suppress(pynvml.NVMLError, KeyError):
+                    arch = NVIDIA_GPU_ARCHITECTURE[
+                        pynvml.nvmlDeviceGetArchitecture(device=device)
+                    ]
+                    gpu_families.add(arch)
 
+                with contextlib.suppress(pynvml.NVMLError):
+                    cc = pynvml.nvmlDeviceGetCudaComputeCapability(handle=device)
+                    architectures.add(f"sm_{''.join([str(i) for i in cc])}")
 
-def _cuda_detector_target(queue: multiprocessing.SimpleQueue):
-    """
-    Attempt to detect the version of CUDA present in the operating system in a
-    subprocess.
-
-    On Windows and Linux, the CUDA library is installed by the NVIDIA
-    driver package, and is typically found in the standard library path,
-    rather than with the CUDA SDK (which is optional for running CUDA apps).
-
-    On macOS, the CUDA library is only installed with the CUDA SDK, and
-    might not be in the library path.
-
-    Returns: version string with CUDA version first, then a set of unique SM's for the
-             GPUs present in the system
-             (e.g., '12.4;8.6,9.0') or None if CUDA is not found.
-             The result is put in the queue rather than a return value.
-    """
-    # Platform-specific libcuda location
-    system = platform.system()
-    if system == "Darwin":
-        lib_filenames = [
-            "libcuda.1.dylib",  # check library path first
-            "libcuda.dylib",
-            "/usr/local/cuda/lib/libcuda.1.dylib",
-            "/usr/local/cuda/lib/libcuda.dylib",
-        ]
-    elif system == "Linux":
-        lib_filenames = [
-            "libcuda.so",  # check library path first
-            "/usr/lib64/nvidia/libcuda.so",  # RHEL/Centos/Fedora
-            "/usr/lib/x86_64-linux-gnu/libcuda.so",  # Ubuntu
-            "/usr/lib/wsl/lib/libcuda.so",  # WSL
-        ]
-        # Also add libraries with version suffix `.1`
-        lib_filenames = list(
-            itertools.chain.from_iterable((f"{lib}.1", lib) for lib in lib_filenames)
-        )
-    elif system == "Windows":
-        bits = platform.architecture()[0].replace("bit", "")  # e.g. "64" or "32"
-        lib_filenames = [f"nvcuda{bits}.dll", "nvcuda.dll"]
-    else:
-        queue.put(None)  # CUDA not available for other operating systems
-        return
-
-    # Open library
-    dll = ctypes.windll if system == "Windows" else ctypes.cdll
-    for lib_filename in lib_filenames:
-        with suppress(Exception):
-            libcuda = dll.LoadLibrary(lib_filename)
-            break
-    else:
-        queue.put(None)
-        return
-
-    # Empty `CUDA_VISIBLE_DEVICES` can cause `cuInit()` returns `CUDA_ERROR_NO_DEVICE`
-    # Invalid `CUDA_VISIBLE_DEVICES` can cause `cuInit()` returns `CUDA_ERROR_INVALID_DEVICE`  # noqa: E501
-    # Unset this environment variable to avoid these errors
-    os.environ.pop("CUDA_VISIBLE_DEVICES", None)
-
-    # Get CUDA version
-    try:
-        cuInit = libcuda.cuInit
-        flags = ctypes.c_uint(0)
-        ret = cuInit(flags)
-        if ret != 0:
-            queue.put(None)
-            return
-
-        cuDriverGetVersion = libcuda.cuDriverGetVersion
-        version_int = ctypes.c_int(0)
-        ret = cuDriverGetVersion(ctypes.byref(version_int))
-        if ret != 0:
-            queue.put(None)
-            return
-
-        # Convert version integer to version string
-        value = version_int.value
-        version_value = f"{value // 1000}.{(value % 1000) // 10}"
-
-        count = ctypes.c_int(0)
-        libcuda.cuDeviceGetCount(ctypes.pointer(count))
-
-        architectures = set()
-        for device in range(count.value):
-            major = ctypes.c_int(0)
-            minor = ctypes.c_int(0)
-            libcuda.cuDeviceComputeCapability(
-                ctypes.pointer(major), ctypes.pointer(minor), device
+            return cls(
+                system_driver_versions=system_driver_version,
+                cuda_driver_version=cuda_driver_version,
+                gpu_families=list(gpu_families),
+                architectures=list(architectures),
             )
-            architectures.add(f"{major.value}.{minor.value}")
-        queue.put(f"{version_value};{','.join(architectures)}")
-    except Exception:  # noqa: BLE001
-        queue.put(None)
-        return
+
+        except pynvml.NVMLError:
+            return None
+
+        finally:
+            with contextlib.suppress(pynvml.NVMLError):
+                # Shutdown NVML to release resources
+                pynvml.nvmlShutdown()
 
 
 if __name__ == "__main__":
-    print(get_cuda_version())  # noqa: T201
+    print(f"{CudaEnvironment.from_system()=}")  # noqa: T201
