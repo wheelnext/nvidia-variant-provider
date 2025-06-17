@@ -4,8 +4,8 @@ import os
 from dataclasses import dataclass
 from functools import cached_property
 
-from detect_cuda import NVIDIA_GPU_ARCHITECTURE
-from detect_cuda import CudaEnvironment
+from nvidia_variant_provider.detect_cuda import NVIDIA_GPU_ARCHITECTURE
+from nvidia_variant_provider.detect_cuda import CudaEnvironment
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class NvidiaVariantPlugin:
         return cuda_env.cuda_driver_version
 
     @property
-    def gpu_families(self) -> list[str]:
+    def gpu_families(self) -> list[str] | None:
         if gpu_families := os.environ.get("NV_VARIANT_PROVIDER_FORCE_GPU_FAMILIES"):
             return gpu_families.split(",")
 
@@ -66,7 +66,7 @@ class NvidiaVariantPlugin:
         return cuda_env.gpu_families
 
     @property
-    def architectures(self) -> list[str]:
+    def architectures(self) -> list[str] | None:
         if architectures := os.environ.get(
             "NV_VARIANT_PROVIDER_FORCE_GPU_ARCHITECTURES"
         ):

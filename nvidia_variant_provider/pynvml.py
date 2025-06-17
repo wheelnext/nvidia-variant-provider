@@ -29,6 +29,10 @@
 ##
 # Python bindings for the NVML library
 ##
+
+# fmt: off
+# flake8: noqa  # ruff: noqa[PGH004]
+
 import os
 import string
 import sys
