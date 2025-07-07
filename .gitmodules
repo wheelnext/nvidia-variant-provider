@@ -1,0 +1,3 @@
+[submodule "nvidia_variant_provider/vendor/packaging"]
+	path = nvidia_variant_provider/vendor/packaging
+	url = https://github.com/pypa/packaging.git

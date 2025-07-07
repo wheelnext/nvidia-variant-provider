@@ -13,7 +13,7 @@ import nvidia_variant_provider.pynvml as _pynvml
 class CudaEnvironment:
     system_driver_versions: str | None
     cuda_driver_version: str | None
-    architectures: list[str]
+    architectures: list[tuple[int, int]]
 
     @classmethod
     @functools.lru_cache(maxsize=1)
@@ -41,13 +41,14 @@ class CudaEnvironment:
                         f"{(int(cuda_driver_version) % 1000) // 10}"
                     )
 
-            architectures: set[str] = set()
+            architectures: set[tuple[int, int]] = set()
 
             for device_id in range(_pynvml.nvmlDeviceGetCount()):
                 device = _pynvml.nvmlDeviceGetHandleByIndex(device_id)
                 with contextlib.suppress(_pynvml.NVMLError):
-                    cc = _pynvml.nvmlDeviceGetCudaComputeCapability(handle=device)
-                    architectures.add(f"sm_{''.join([str(i) for i in cc])}")
+                    architectures.add(
+                        _pynvml.nvmlDeviceGetCudaComputeCapability(handle=device)
+                    )
 
             return cls(
                 system_driver_versions=system_driver_version,

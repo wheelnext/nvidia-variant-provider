@@ -3191,13 +3191,13 @@ def throwOnVersionMismatch(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except NVMLError_FunctionNotFound:
+        except Exception as e:
             raise NVMLLibraryMismatchError(
                 "Unversioned function called and the "
                 "pyNVML version does not match the NVML lib version. "
                 "Either use matching pyNVML and NVML lib versions or "
                 "use a versioned function such as " + func.__name__ + "_v2"
-            )
+            ) from e
 
     return wrapper
 

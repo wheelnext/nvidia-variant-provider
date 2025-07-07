@@ -5,6 +5,7 @@ import warnings
 from abc import abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import cached_property
 from typing import Any
 from typing import Protocol
@@ -15,7 +16,6 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from packaging.version import parse as parse_version
 
-from nvidia_variant_provider.detect_cuda import NVIDIA_GPU_ARCHITECTURE
 from nvidia_variant_provider.detect_cuda import CudaEnvironment
 from nvidia_variant_provider.version_sort import sort_specifier_sets
 
@@ -58,12 +58,11 @@ class VariantFeatureConfig:
     values: list[str]
 
 
-DRIVER_KEY = "driver"
-CUDA_KEY = "cuda_version"
-SM_ARCH_KEY = "sm_arch"
-CTK_KEY = "ctk"
-
-LATEST_CUDA_MINOR_VERSIONS = {11: 8, 12: 9}
+class NvidiaVariantFeatureKey(StrEnum):
+    DRIVER = "driver"
+    CUDA = "cuda_version"
+    SM = "sm_arch"
+    CTK = "ctk"
 
 
 class InputPreservingSpecifierSet(SpecifierSet):
@@ -89,26 +88,34 @@ class NvidiaVariantPlugin:
         return CudaEnvironment.from_system()
 
     @property
-    def umd_driver(self) -> str | None:
-        if driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_UMD_DRIVER_VERSION"):
-            return driver_ver
+    def kmd_version(self) -> Version | None:
+        if driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_KMD_DRIVER_VERSION"):
+            return Version(driver_ver)
 
         if (cuda_env := self._cuda_environment) is None:
             return None
 
-        return cuda_env.system_driver_versions
+        return (
+            Version(cuda_env.system_driver_versions)
+            if cuda_env.system_driver_versions
+            else None
+        )
 
     @property
-    def cuda_driver(self) -> str | None:
+    def umd_version(self) -> Version | None:
         if driver_ver := os.environ.get(
             "NV_VARIANT_PROVIDER_FORCE_CUDA_DRIVER_VERSION"
         ):
-            return driver_ver
+            return Version(driver_ver)
 
         if (cuda_env := self._cuda_environment) is None:
             return None
 
-        return cuda_env.cuda_driver_version
+        return (
+            Version(cuda_env.cuda_driver_version)
+            if cuda_env.cuda_driver_version
+            else None
+        )
 
     @property
     def architectures(self) -> list[str] | None:
@@ -167,19 +174,72 @@ class NvidiaVariantPlugin:
 
         keyconfigs: list[VariantFeatureConfig] = []
 
-        # Priority 1: User-Mode Driver (UMD) Version
+        # Priority 1: Kernel-Mode Driver (KMD) Version
 
-        if (umd_ver := self.umd_driver) is not None:
-            keyconfigs.append(VariantFeatureConfig(name=DRIVER_KEY, values=[umd_ver]))
+        key = NvidiaVariantFeatureKey.DRIVER
+        if (kmd_version := self.kmd_version) is not None:
+            vprops_specset: list[InputPreservingSpecifierSet] = []
+            for vprop in prop_values.get(key, []):
+                try:
+                    vprops_specset.append(InputPreservingSpecifierSet(vprop))
+                except InvalidSpecifier:  # noqa: PERF203
+                    warnings.warn(
+                        f"The variant property `{self.namespace} :: {key} :: {vprop}` "
+                        f"is not a valid `SpecifierSet`. Will be ignored.",
+                        UserWarning,
+                        stacklevel=1,
+                    )
 
-        # Priority 2: CUDA Driver Version
+            vprops_specset = sort_specifier_sets(vprops_specset)
+            vprops_specset.reverse()  # most generic to most specific, forward first
 
-        if (cuda_ver := self.cuda_driver) is not None:
-            keyconfigs.append(VariantFeatureConfig(name=CUDA_KEY, values=[cuda_ver]))
+            keyconfigs.append(
+                VariantFeatureConfig(
+                    name=key,
+                    values=[
+                        specset.original_value
+                        for specset in vprops_specset
+                        if kmd_version in specset
+                    ],
+                )
+            )
+
+        # Priority 2: User-Mode Driver (UMD) / LIBCUDA Driver Version
+
+        key = NvidiaVariantFeatureKey.CUDA
+        if (umd_version := self.umd_version) is not None:
+            vprops_specset: list[InputPreservingSpecifierSet] = []
+            for vprop in prop_values.get(key, []):
+                try:
+                    vprops_specset.append(InputPreservingSpecifierSet(vprop))
+                except InvalidSpecifier:  # noqa: PERF203
+                    warnings.warn(
+                        f"The variant property `{self.namespace} :: {key} :: {vprop}` "
+                        f"is not a valid `SpecifierSet`. Will be ignored.",
+                        UserWarning,
+                        stacklevel=1,
+                    )
+
+            vprops_specset = sort_specifier_sets(vprops_specset)
+            vprops_specset.reverse()  # most generic to most specific, forward first
+
+            keyconfigs.append(
+                VariantFeatureConfig(
+                    name=key,
+                    values=[
+                        specset.original_value
+                        for specset in vprops_specset
+                        if umd_version in specset
+                    ],
+                )
+            )
 
         # Priority 3: SM Architectures
+        # - All versions are supported by the plugin - purely sort:
+        #    - Bigger numbers first
+        #    - Real architectures first, then virtual architectures
 
-        if architectures := prop_values.get(SM_ARCH_KEY, []):
+        if architectures := prop_values.get(NvidiaVariantFeatureKey.SM, []):
 
             def sort_key(item: str) -> tuple[int, int]:
                 num_str, type_str = item.split("_")
@@ -190,18 +250,19 @@ class NvidiaVariantPlugin:
 
             keyconfigs.append(
                 VariantFeatureConfig(
-                    name=SM_ARCH_KEY, values=sorted(architectures, key=sort_key)
+                    name=NvidiaVariantFeatureKey.SM,
+                    values=sorted(architectures, key=sort_key),
                 )
             )
 
         # Priority 4: CTK
-        # - All versions supported by the plugin - purely sort by version
+        # - All versions are supported by the plugin - purely sort by version
         # - Used exclusively for dependency resolution
 
-        if ctks := prop_values.get(CTK_KEY, []):
+        if ctks := prop_values.get(NvidiaVariantFeatureKey.CTK, []):
             keyconfigs.append(
                 VariantFeatureConfig(
-                    name=CTK_KEY,
+                    name=NvidiaVariantFeatureKey.CTK,
                     values=sorted(ctks, key=parse_version, reverse=True),
                 )
             )
@@ -211,8 +272,8 @@ class NvidiaVariantPlugin:
     def get_all_configs(
         self, known_properties: list[VariantPropertyType] | None
     ) -> list[VariantFeatureConfig]:
-        """Get all supported configurations, including those not in the known
-        properties."""
+        """Not used - transparently returns all known properties as configs."""
+
         if known_properties is None:
             return []
 
@@ -223,5 +284,6 @@ class NvidiaVariantPlugin:
             prop_values[vprop.feature].append(vprop.value)
 
         return [
-            VariantFeatureConfig(name, values) for name, values in prop_values.items()
+            VariantFeatureConfig(name, list(set(values)))
+            for name, values in prop_values.items()
         ]
