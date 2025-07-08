@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "nvidia-variant-provider"
-dependencies = [ "packaging", "variantlib" ]
+dependencies = []
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
