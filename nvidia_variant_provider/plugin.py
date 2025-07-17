@@ -3,21 +3,17 @@ from __future__ import annotations
 import os
 import warnings
 from abc import abstractmethod
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import cache
 from functools import cached_property
-from typing import Any
 from typing import Protocol
 from typing import runtime_checkable
 
-from packaging.specifiers import InvalidSpecifier
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-from packaging.version import parse as parse_version
 
 from nvidia_variant_provider.detect_cuda import CudaEnvironment
-from nvidia_variant_provider.version_sort import sort_specifier_sets
 
 FeatureIndex = int
 PropertyIndex = int
@@ -62,7 +58,6 @@ class NvidiaVariantFeatureKey(StrEnum):
     DRIVER = "driver"
     CUDA = "cuda_version"
     SM = "sm_arch"
-    CTK = "ctk"
 
 
 class InputPreservingSpecifierSet(SpecifierSet):
@@ -79,7 +74,10 @@ class InputPreservingSpecifierSet(SpecifierSet):
 
 class NvidiaVariantPlugin:
     namespace = "nvidia"
-    dynamic = True
+    dynamic = False
+
+    UMD_LOWEST_VERSION = Version("11.0")
+    UMD_HIGHEST_VERSION = Version("15.20")
 
     @cached_property
     def _cuda_environment(self) -> CudaEnvironment | None:
@@ -87,19 +85,29 @@ class NvidiaVariantPlugin:
 
         return CudaEnvironment.from_system()
 
-    @property
-    def kmd_version(self) -> Version | None:
-        if driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_KMD_DRIVER_VERSION"):
-            return Version(driver_ver)
+    @cache  # noqa: B019
+    def generate_all_umd_values(self) -> list[str]:
+        return [
+            f"{major}.{minor}" if minor is not None else f"{major}"
+            for major in range(
+                self.UMD_HIGHEST_VERSION.major, self.UMD_LOWEST_VERSION.major - 1, -1
+            )
+            for minor in [*range(self.UMD_HIGHEST_VERSION.minor, -1, -1), None]
+        ]
 
-        if (cuda_env := self._cuda_environment) is None:
-            return None
+    # @property
+    # def kmd_version(self) -> Version | None:
+    #     if driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_KMD_DRIVER_VERSION"):
+    #         return Version(driver_ver)
 
-        return (
-            Version(cuda_env.system_driver_versions)
-            if cuda_env.system_driver_versions
-            else None
-        )
+    #     if (cuda_env := self._cuda_environment) is None:
+    #         return None
+
+    #     return (
+    #         Version(cuda_env.system_driver_versions)
+    #         if cuda_env.system_driver_versions
+    #         else None
+    #     )
 
     @property
     def umd_version(self) -> Version | None:
@@ -122,145 +130,81 @@ class NvidiaVariantPlugin:
     ) -> list[VariantFeatureConfig]:
         """Filter and sort the properties based on the plugin's logic."""
 
-        # 1.A - Validation: Validate input types.
-        assert isinstance(known_properties, frozenset)
-        assert all(isinstance(vprop, VariantPropertyType) for vprop in known_properties)
-
-        if not known_properties:
-            # Nothing In => Nothing Out
-            return []
-
-        # ============================================================================ #
-        # A. Preprocessing: Sort the properties by feature, and value.
-        # ============================================================================ #
-
-        prop_values: dict[VariantFeatureName, list[VariantFeatureValue]] = defaultdict(
-            list
-        )
-        for vprop in known_properties:
-            prop_values[vprop.feature].append(vprop.value)
-
-        # ============================================================================ #
-        # B. Validation: Ensure all properties belong to the proper namespace.
-        # ============================================================================ #
-
-        issues_found: list[str] = [
-            f"Property `{vprop}` does not belong to namespace {self.namespace}"
-            for vprop in known_properties
-            if vprop.namespace != self.namespace
-        ]
-        if issues_found:
-            raise ValueError(
-                f"Non compatible properties found in variant plugin "
-                f"`{self.namespace}`:"
-                + ("\n- " + ("\n- ".join(issues_found)) if issues_found else "")
-            )
-
-        # ============================================================================ #
-        # C. Processing: Filter and sort supported variant property values
-        # ============================================================================ #
-
         keyconfigs: list[VariantFeatureConfig] = []
 
-        # Priority 1: Kernel-Mode Driver (KMD) Version
+        # ============= User-Mode Driver (UMD) / LIBCUDA Driver Version ============= #
 
-        key = NvidiaVariantFeatureKey.DRIVER
-        if (kmd_version := self.kmd_version) is not None:
-            vprops_specset: list[InputPreservingSpecifierSet] = []
-            for vprop in prop_values.get(key, []):
-                try:
-                    vprops_specset.append(InputPreservingSpecifierSet(vprop))
-                except InvalidSpecifier:  # noqa: PERF203
-                    warnings.warn(
-                        f"The variant property `{self.namespace} :: {key} :: {vprop}` "
-                        f"is not a valid `SpecifierSet`. Will be ignored.",
-                        UserWarning,
-                        stacklevel=1,
+        # Priority 1 - UMD Lower Bound: `>= {major}.{minor}` or `>= {major}`
+        # Example Output with Local UMD Version: 12.7
+        # ['12.7', ..., '12.0', '12', '11.20', ..., '11.0', '11']
+
+        if self.umd_version is not None:
+            if self.umd_version >= self.UMD_LOWEST_VERSION:
+                umd_values_low = [
+                    f"{major}.{minor}" if minor is not None else f"{major}"
+                    for major in range(
+                        self.umd_version.major, self.UMD_LOWEST_VERSION.major - 1, -1
                     )
-
-            vprops_specset = sort_specifier_sets(vprops_specset)
-            vprops_specset.reverse()  # most generic to most specific, forward first
-
-            kmd_valid_values = [
-                specset.original_value
-                for specset in vprops_specset
-                if kmd_version in specset
-            ]
-
-            if kmd_valid_values:
-                keyconfigs.append(
-                    VariantFeatureConfig(
-                        name=key,
-                        values=kmd_valid_values,
+                    for minor in (
+                        [*range(self.UMD_HIGHEST_VERSION.minor, -1, -1), None]
+                        if major < self.umd_version.major
+                        else [*range(self.umd_version.minor, -1, -1), None]
                     )
+                ]
+                if umd_values_low:
+                    keyconfigs.append(
+                        VariantFeatureConfig(
+                            name=f"{NvidiaVariantFeatureKey.CUDA}_lower_bound",
+                            values=umd_values_low,
+                        )
+                    )
+            else:
+                warnings.warn(
+                    f"The UMD version {self.umd_version} is lower than the "
+                    f"minimum supported version {self.UMD_LOWEST_VERSION}. "
+                    "No lower bound will be set for CUDA versions. Unexpected behavior "
+                    "may occur.",
+                    UserWarning,
+                    stacklevel=1,
                 )
 
-        # Priority 2: User-Mode Driver (UMD) / LIBCUDA Driver Version
+        # Priority 2 - UMD Higher Bound (excluded): `< {major}.{minor}` or `< {major}`
+        # Example Output with Local UMD Version: 12.7
+        # ['15.20', ..., '15.0', '15', ...,  '13.0', '13', ..., '12.9', '12.8']
 
-        key = NvidiaVariantFeatureKey.CUDA
-        if (umd_version := self.umd_version) is not None:
-            vprops_specset: list[InputPreservingSpecifierSet] = []
-            for vprop in prop_values.get(key, []):
-                try:
-                    vprops_specset.append(InputPreservingSpecifierSet(vprop))
-                except InvalidSpecifier:  # noqa: PERF203
-                    warnings.warn(
-                        f"The variant property `{self.namespace} :: {key} :: {vprop}` "
-                        f"is not a valid `SpecifierSet`. Will be ignored.",
-                        UserWarning,
-                        stacklevel=1,
+        if self.umd_version is not None:
+            if self.umd_version < self.UMD_HIGHEST_VERSION:
+                umd_values_low = [
+                    f"{major}.{minor}" if minor is not None else f"{major}"
+                    for major in range(
+                        self.UMD_HIGHEST_VERSION.major, self.umd_version.major - 1, -1
                     )
-
-            vprops_specset = sort_specifier_sets(vprops_specset)
-            vprops_specset.reverse()  # most generic to most specific, forward first
-
-            umd_valid_values = [
-                specset.original_value
-                for specset in vprops_specset
-                if umd_version in specset
-            ]
-
-            if umd_valid_values:
-                keyconfigs.append(
-                    VariantFeatureConfig(
-                        name=key,
-                        values=umd_valid_values,
+                    for minor in (
+                        [*range(self.UMD_HIGHEST_VERSION.minor, -1, -1), None]
+                        if major > self.umd_version.major
+                        else range(
+                            self.UMD_HIGHEST_VERSION.minor,
+                            self.umd_version.minor,
+                            -1,
+                        )
                     )
-                )
-
-        # Priority 3: SM Architectures
-        # - All versions are supported by the plugin - purely sort:
-        #    - Bigger numbers first
-        #    - Real architectures first, then virtual architectures
-
-        if architectures := prop_values.get(NvidiaVariantFeatureKey.SM, []):
-
-            def sort_key(item: str) -> tuple[int, int]:
-                num_str, type_str = item.split("_")
-                num = int(num_str)
-                # real = 0, virtual = 1 to prioritize 'real' first
-                type_priority = 0 if type_str == "real" else 1
-                return (-num, type_priority)
-
-            if architectures:
-                keyconfigs.append(
-                    VariantFeatureConfig(
-                        name=NvidiaVariantFeatureKey.SM,
-                        values=sorted(architectures, key=sort_key),
+                ]
+                if umd_values_low:
+                    keyconfigs.append(
+                        VariantFeatureConfig(
+                            name=f"{NvidiaVariantFeatureKey.CUDA}_upper_bound",
+                            values=umd_values_low,
+                        )
                     )
+            else:
+                warnings.warn(
+                    f"The UMD version {self.umd_version} is higher than the "
+                    f"maximum supported version {self.UMD_HIGHEST_VERSION}. "
+                    "No upper bound will be set for CUDA versions. Unexpected behavior "
+                    "may occur.",
+                    UserWarning,
+                    stacklevel=1,
                 )
-
-        # Priority 4: CTK
-        # - All versions are supported by the plugin - purely sort by version
-        # - Used exclusively for dependency resolution
-
-        if ctks := prop_values.get(NvidiaVariantFeatureKey.CTK, []):
-            keyconfigs.append(
-                VariantFeatureConfig(
-                    name=NvidiaVariantFeatureKey.CTK,
-                    values=sorted(ctks, key=parse_version, reverse=True),
-                )
-            )
 
         return keyconfigs
 
@@ -269,20 +213,24 @@ class NvidiaVariantPlugin:
     ) -> list[VariantFeatureConfig]:
         """Not used - transparently returns all known properties as configs."""
 
-        if known_properties is None:
-            return []
-
-        prop_values: dict[VariantFeatureName, list[VariantFeatureValue]] = defaultdict(
-            list
-        )
-        for vprop in known_properties:
-            prop_values[vprop.feature].append(vprop.value)
+        all_umd_values = self.generate_all_umd_values()
 
         return [
-            VariantFeatureConfig(name, list(set(values)))
-            for name, values in prop_values.items()
+            VariantFeatureConfig(
+                f"{NvidiaVariantFeatureKey.CUDA}_lower_bound", all_umd_values
+            ),
+            VariantFeatureConfig(
+                f"{NvidiaVariantFeatureKey.CUDA}_upper_bound", all_umd_values
+            ),
         ]
 
     def validate_property(self, variant_property: VariantPropertyType) -> bool:
         assert variant_property.namespace == self.namespace
-        return True
+
+        if variant_property.feature not in [
+            f"{NvidiaVariantFeatureKey.CUDA}_lower_bound",
+            f"{NvidiaVariantFeatureKey.CUDA}_upper_bound",
+        ]:
+            return False
+
+        return variant_property.value in self.generate_all_umd_values()
