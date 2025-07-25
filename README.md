@@ -74,13 +74,13 @@ This package is automatically installed when necessary, it is **not necessary** 
 ### Install from PyPI (when available)
 
 ```bash
-pip install nvidia-variant-provider
+[uv] pip install nvidia-variant-provider
 ```
 
 ### Install from Source
 
 ```bash
-pip install "nvidia-variant-provider @ git+https://github.com/wheelnext/nvidia-variant-provider.git"
+[uv] pip install "nvidia-variant-provider @ git+https://github.com/wheelnext/nvidia-variant-provider.git"
 ```
 
 ## How It Works
@@ -113,14 +113,14 @@ Once installed, the plugin works automatically with variant-aware package instal
 
 ```bash
 # Automatic variant selection
-pip install torch  # Automatically selects GPU-optimized variant
+[uv] pip install torch  # Automatically selects GPU-optimized variant
 
 # Force specific variant (if needed)
-pip install "torch#cu129"
-pip install "torch==2.8.0#cu129"
+[uv] pip install "torch#cu129"
+[uv] pip install "torch==2.8.0#cu129"
 
 # Disable variant selection
-pip install --no-variant torch
+[uv] pip install --no-variant torch
 ```
 
 ### DEBUG - Overwrite Detection
@@ -141,11 +141,11 @@ export NV_VARIANT_PROVIDER_FORCE_SM_ARCH = "9.0"               # replace with th
 ```bash
 # Test with specific CUDA version
 export NV_VARIANT_PROVIDER_FORCE_CUDA_DRIVER_VERSION=12.8
-pip install torch
+[uv] pip install torch
 
 # Test with specific architecture
 export NV_VARIANT_PROVIDER_FORCE_SM_ARCH=10.0
-pip install torch
+[uv] pip install torch
 ```
 
 ## Configuring Your Project
@@ -254,7 +254,7 @@ print(CudaEnvironment.from_system())
 
 **Solution**: Check variant priorities in package's `pyproject.toml` and use explicit selection:
 ```bash
-pip install package-name#cu126
+[uv] pip install package-name#cu126
 ```
 
 ### Reporting Issues
