@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import warnings
 from dataclasses import dataclass
-from enum import StrEnum
 from functools import cache
 from functools import cached_property
 from typing import Protocol
@@ -49,7 +48,7 @@ class VariantFeatureConfig:
     values: list[str]
 
 
-class NvidiaVariantFeatureKey(StrEnum):
+class NvidiaVariantFeatureKey:
     # DRIVER = "driver"
     CUDA = "cuda_version"
     SM = "sm_arch"
@@ -237,7 +236,7 @@ class NvidiaVariantPlugin:
                 if sm_cmake_flags:
                     keyconfigs.append(
                         VariantFeatureConfig(
-                            name=NvidiaVariantFeatureKey.SM.value,
+                            name=NvidiaVariantFeatureKey.SM,
                             values=sm_cmake_flags,
                         )
                     )
@@ -259,7 +258,7 @@ class NvidiaVariantPlugin:
                 f"{NvidiaVariantFeatureKey.CUDA}_upper_bound", all_umd_values
             ),
             VariantFeatureConfig(
-                NvidiaVariantFeatureKey.SM.value, self.generate_all_sm_values()
+                NvidiaVariantFeatureKey.SM, self.generate_all_sm_values()
             ),
         ]
 
