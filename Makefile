@@ -58,8 +58,7 @@ coverage: ## check code coverage quickly with the default Python
 # ============================================================================ #
 
 build: clean ## builds source and wheel package
-	pip install --upgrade build wheel
-	python3 -m build --wheel
+	flit build --format wheel
 	ls -l dist
 
 publish: build
