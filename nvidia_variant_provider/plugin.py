@@ -272,7 +272,7 @@ class NvidiaVariantPlugin:
         ]:
             return variant_property.value in self.generate_all_umd_values()
 
-        if variant_property.feature == NvidiaVariantFeatureKey.SM.value:
+        if variant_property.feature == NvidiaVariantFeatureKey.SM:
             return variant_property.value in self.generate_all_sm_values()
 
         warnings.warn(
