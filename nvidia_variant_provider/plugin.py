@@ -56,7 +56,6 @@ class NvidiaVariantFeatureKey:
 
 class NvidiaVariantPlugin:
     namespace = "nvidia"
-    dynamic = False
 
     UMD_MAJOR_RANGE = range(11, 16)
     UMD_MINOR_RANGE = range(21)
@@ -157,9 +156,7 @@ class NvidiaVariantPlugin:
 
         return sorted(self._cuda_environment.architectures, reverse=True)[0]
 
-    def get_supported_configs(
-        self, known_properties: frozenset[VariantPropertyType] | None
-    ) -> list[VariantFeatureConfig]:
+    def get_supported_configs(self) -> list[VariantFeatureConfig]:
         """Filter and sort the properties based on the plugin's logic."""
 
         if self.umd_version is None:
@@ -243,9 +240,7 @@ class NvidiaVariantPlugin:
 
         return keyconfigs
 
-    def get_all_configs(
-        self, known_properties: list[VariantPropertyType] | None
-    ) -> list[VariantFeatureConfig]:
+    def get_all_configs(self) -> list[VariantFeatureConfig]:
         """Not used - transparently returns all known properties as configs."""
 
         all_umd_values = self.generate_all_umd_values()
@@ -262,27 +257,6 @@ class NvidiaVariantPlugin:
             ),
         ]
 
-    def validate_property(self, variant_property: VariantPropertyType) -> bool:
-        assert isinstance(variant_property, VariantPropertyType)
-        assert variant_property.namespace == self.namespace
-
-        if variant_property.feature in [
-            f"{NvidiaVariantFeatureKey.CUDA}_lower_bound",
-            f"{NvidiaVariantFeatureKey.CUDA}_upper_bound",
-        ]:
-            return variant_property.value in self.generate_all_umd_values()
-
-        if variant_property.feature == NvidiaVariantFeatureKey.SM.value:
-            return variant_property.value in self.generate_all_sm_values()
-
-        warnings.warn(
-            "Unknown variant feature received: "
-            f"`nvidia :: {variant_property.feature}`.",
-            UserWarning,
-            stacklevel=1,
-        )
-        return False
-
 
 if __name__ == "__main__":
     import os
@@ -297,24 +271,3 @@ if __name__ == "__main__":
     # May fail if `variantlib` is not installed: not an actual dependency
     # from variantlib.api import VariantProperty
 
-    # print(  # noqa: T201
-    #     plugin.validate_property(
-    #         VariantProperty(
-    #             namespace="nvidia", feature="cuda_version_lower_bound", value="12.0"
-    #         )
-    #     )
-    # )
-
-    # print(  # noqa: T201
-    #     plugin.validate_property(
-    #         VariantProperty(
-    #             namespace="nvidia", feature="cuda_version_upper_bound", value="12.8"
-    #         )
-    #     )
-    # )
-
-    print(  # noqa: T201
-        plugin.validate_property(
-            VariantProperty(namespace="nvidia", feature="sm_arch", value="70_real")
-        )
-    )
