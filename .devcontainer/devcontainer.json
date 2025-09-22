@@ -1,0 +1,77 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.245.2/containers/docker-existing-dockerfile
+{
+    "name": "NVIDIA Variant Provider - Dev Container",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "workspaceFolder": "/workspace/",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/,type=bind",
+    // Set *default* container specific settings.json values on container create.
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "editor.formatOnSave": true,
+                "makefile.configureOnOpen": false,
+                "remote.autoForwardPorts": false,
+                "[python]": {
+                    "analysis.autoImportCompletions": true,
+                    "analysis.exclude": [
+                        "**/__pycache__",
+                        "**/.*",
+                        "**/*.egg-info",
+                        "**/build",
+                        "**/dist"
+                    ],
+                    "analysis.typeCheckingMode": "basic",
+                    "defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports": "always"
+                    },
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "languageServer": "Pylance",
+                    "linting.enabled": true,
+                    "linting.flake8Enabled": true,
+                    "linting.mypyEnabled": true,
+                    "linting.mypyPath": "/usr/local/bin/mypy",
+                    "linting.pylintEnabled": true
+                }
+            },
+            "extensions": [
+                // Python
+                "ms-python.python",
+                // Build Tools
+                "ms-azuretools.vscode-docker",
+                // Git & Github
+                "GitHub.vscode-pull-request-github",
+                // Github Actions
+                "GitHub.vscode-github-actions",
+                // GitLens
+                "eamodio.gitlens",
+                // Makefile
+                "ms-vscode.makefile-tools",
+                // TOML
+                "juggernautjp.less-toml", // Simple TOML Syntax - No schema validation
+                // PyLance
+                "ms-python.vscode-pylance",
+                // Makefile Tools
+                "ms-vscode.makefile-tools",
+                // Ruff
+                "charliermarsh.ruff",
+                // Jinja
+                "samuelcolvin.jinjahtml"
+            ]
+        }
+    },
+    "postCreateCommand": "uv sync",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "nvidia",
+            "installZsh": true,
+            "installOhMyZsh": true,
+            "configureZshAsDefaultShell": false,
+            "upgradePackages": false
+        }
+    }
+}

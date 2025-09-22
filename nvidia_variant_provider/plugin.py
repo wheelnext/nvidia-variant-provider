@@ -46,6 +46,7 @@ class VariantFeatureConfig:
 
     # Acceptable values in priority order
     values: list[str]
+    multi_value: bool = False
 
 
 class NvidiaVariantFeatureKey:
@@ -56,6 +57,7 @@ class NvidiaVariantFeatureKey:
 
 class NvidiaVariantPlugin:
     namespace = "nvidia"
+    is_build_plugin = False
 
     UMD_MAJOR_RANGE = range(11, 16)
     UMD_MINOR_RANGE = range(21)
@@ -88,7 +90,9 @@ class NvidiaVariantPlugin:
 
     # @property
     # def kmd_version(self) -> Version | None:
-    #     if driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_KMD_DRIVER_VERSION"):
+    #     if (
+    #       driver_ver := os.environ.get("NV_VARIANT_PROVIDER_FORCE_KMD_DRIVER_VERSION"
+    #     ):
     #         return Version(driver_ver)
 
     #     if (cuda_env := self._cuda_environment) is None:
@@ -149,7 +153,7 @@ class NvidiaVariantPlugin:
         """Get the SM architectures from the CUDA environment."""
 
         if sm_arch := os.environ.get("NV_VARIANT_PROVIDER_FORCE_SM_ARCH"):
-            return tuple(map(int, sm_arch.split(".", maxsplit=1)))  # pyright: ignore[reportReturnType]
+            return tuple(map(int, sm_arch.split(".", maxsplit=1)))  # type: ignore[return-value]
 
         if self._cuda_environment is None:
             return None
@@ -235,6 +239,7 @@ class NvidiaVariantPlugin:
                         VariantFeatureConfig(
                             name=NvidiaVariantFeatureKey.SM,
                             values=sm_cmake_flags,
+                            multi_value=True,
                         )
                     )
 
@@ -265,9 +270,8 @@ if __name__ == "__main__":
     os.environ["NV_VARIANT_PROVIDER_FORCE_SM_ARCH"] = "12.5"
     plugin = NvidiaVariantPlugin()
 
-    # print(plugin.get_supported_configs(None))  # noqa: T201
-    # print(plugin.get_all_configs(None))  # noqa: T201
+    # print(plugin.get_supported_configs(None))
+    # print(plugin.get_all_configs(None))
 
     # May fail if `variantlib` is not installed: not an actual dependency
     # from variantlib.api import VariantProperty
-

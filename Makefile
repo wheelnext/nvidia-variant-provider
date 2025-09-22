@@ -60,6 +60,8 @@ coverage: ## check code coverage quickly with the default Python
 build: clean ## builds source and wheel package
 	flit build --format wheel
 	ls -l dist
+	cp dist/*.whl gh-pages/nvidia-variant-provider/
+	sha256sum gh-pages/nvidia-variant-provider/*.whl
 
 publish: build
 	pip install --upgrade twine

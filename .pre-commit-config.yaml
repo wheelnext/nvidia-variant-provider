@@ -1,0 +1,98 @@
+exclude: "^nvidia_variant_provider/vendor|^nvidia_variant_provider/pynvml.*"
+
+default_language_version:
+  python: python3.13
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^tests/artifacts/
+      - id: end-of-file-fixer
+        exclude: ^tests/artifacts/
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.8.19
+    hooks:
+      - id: uv-lock
+        args: ["--check"]
+
+  # Run the Ruff linter.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.1
+    hooks:
+      # Linter
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^tests/artifacts/
+      # Formatter
+      - id: ruff-format
+        exclude: ^tests/artifacts/
+
+    # Use a Local Workflow to ensure that `mypy` picks up all the local up-to-date dependencies
+  - repo: local
+    hooks:
+      - args:
+          [
+            "run",
+            "--",
+            "--cache-fine-grained",
+            "--config-file",
+            "pyproject.toml",
+          ]
+        description: Static type checker for Python
+        # https://github.com/pre-commit/mirrors-mypy/blob/main/.pre-commit-hooks.yaml
+        entry: dmypy
+        id: mypy
+        language: system
+        name: mypy
+        require_serial: true
+        types_or: [python, pyi]
+        exclude: 'nvidia_variant_provider/pynvml.py'
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.15.0
+  #   hooks:
+  #     - id: mypy
+  #       args: [
+  #         "--config-file",
+  #         "pyproject.toml",
+  #       ]
+  #       additional_dependencies:
+  #         - "deepdiff"
+  #         - "hypothesis"
+  #         - "packaging"
+  #         - "platformdirs"
+  #         - "pytest"
+  #         - "tomlkit"
+  #         - "tzlocal"
+  #         - "urwid"
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1  # check for the latest version
+    hooks:
+      - id: autoflake
+        args: [
+          "--in-place",
+          "--remove-all-unused-imports",
+          "--remove-unused-variables",
+          "--expand-star-imports"
+        ]
+        additional_dependencies: ["autoflake"]
+
+# sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
+ci:
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

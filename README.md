@@ -23,7 +23,7 @@ A variant provider plugin for the Wheel Variant upcoming proposed standard that 
 
 ## Overview
 
-The NVIDIA Variant Provider Plugin is part of the work conducted under [WheelNext](https://wheelnext.dev) initiative to "Re-invent the Wheel" and Python package distribution for scientific computing and hardware-accelerated computing. 
+The NVIDIA Variant Provider Plugin is part of the work conducted under [WheelNext](https://wheelnext.dev) initiative to "Re-invent the Wheel" and Python package distribution for scientific computing and hardware-accelerated computing.
 
 This package provides the logic to automatically detects NVIDIA GPU capabilities and CUDA environments to select the most optimized package variants for your system.
 
@@ -233,7 +233,7 @@ namespace = ["nvidia"]
 NVMLError: Initialization error
 ```
 
-**Solution**: 
+**Solution**:
 - Ensure NVIDIA drivers are properly installed
 - Check if `nvidia-smi` command works
 - May need to install NVIDIA CUDA Driver
