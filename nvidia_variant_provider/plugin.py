@@ -252,13 +252,17 @@ class NvidiaVariantPlugin:
 
         return [
             VariantFeatureConfig(
-                f"{NvidiaVariantFeatureKey.CUDA}_lower_bound", all_umd_values
+                name=f"{NvidiaVariantFeatureKey.CUDA}_lower_bound",
+                values=all_umd_values,
             ),
             VariantFeatureConfig(
-                f"{NvidiaVariantFeatureKey.CUDA}_upper_bound", all_umd_values
+                name=f"{NvidiaVariantFeatureKey.CUDA}_upper_bound",
+                values=all_umd_values,
             ),
             VariantFeatureConfig(
-                NvidiaVariantFeatureKey.SM, self.generate_all_sm_values()
+                name=NvidiaVariantFeatureKey.SM,
+                values=self.generate_all_sm_values(),
+                multi_value=True,
             ),
         ]
 
