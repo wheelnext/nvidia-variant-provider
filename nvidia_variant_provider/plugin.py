@@ -141,7 +141,7 @@ class NvidiaVariantPlugin:
 
         if min_umd_version > umd_version or umd_version > max_umd_version:
             warnings.warn(
-                f"The UMD version `{cls.umd_version}` is outside the supported range: "
+                f"The UMD version `{umd_version}` is outside the supported range: "
                 f"`>={min_umd_version},<={max_umd_version}`.\n"
                 "NVIDIA platform detection has been deactivated.",
                 UserWarning,
@@ -169,7 +169,7 @@ class NvidiaVariantPlugin:
     def get_supported_configs(cls) -> list[VariantFeatureConfig]:
         """Filter and sort the properties based on the plugin's logic."""
 
-        if cls.umd_version is None:
+        if (umd_version := cls.umd_version()) is None:
             return []
 
         keyconfigs: list[VariantFeatureConfig] = []
@@ -181,11 +181,11 @@ class NvidiaVariantPlugin:
         # ['12.7', ..., '12.0', '12', '11.20', ..., '11.0', '11']
         umd_values_low = [
             f"{major}.{minor}" if minor is not None else f"{major}"
-            for major in range(cls.umd_version.major, min(cls.UMD_MAJOR_RANGE) - 1, -1)
+            for major in range(umd_version.major, min(cls.UMD_MAJOR_RANGE) - 1, -1)
             for minor in (
                 [*range(max(cls.UMD_MINOR_RANGE), -1, -1), None]
-                if major < cls.umd_version.major
-                else [*range(cls.umd_version.minor, -1, -1), None]
+                if major < umd_version.major
+                else [*range(umd_version.minor, -1, -1), None]
             )
         ]
         if umd_values_low:
@@ -201,11 +201,11 @@ class NvidiaVariantPlugin:
         # ['15.20', ..., '15.0', '15', ...,  '13.0', '13', ..., '12.9', '12.8']
         umd_values_low = [
             f"{major}.{minor}" if minor is not None else f"{major}"
-            for major in range(max(cls.UMD_MAJOR_RANGE), cls.umd_version.major - 1, -1)
+            for major in range(max(cls.UMD_MAJOR_RANGE), umd_version.major - 1, -1)
             for minor in (
                 [*range(max(cls.UMD_MINOR_RANGE), -1, -1), None]
-                if major > cls.umd_version.major
-                else range(max(cls.UMD_MINOR_RANGE), cls.umd_version.minor, -1)
+                if major > umd_version.major
+                else range(max(cls.UMD_MINOR_RANGE), umd_version.minor, -1)
             )
         ]
         if umd_values_low:
@@ -217,7 +217,7 @@ class NvidiaVariantPlugin:
             )
 
         # Priority 3 - NVIDIA SM Arch Compatibility - based on CMAKE Flags
-        if sm_arch := cls.get_sm_architectures:
+        if sm_arch := cls.get_sm_architectures():
             # For now we only use the highest SM architecture on the system
             sm_major, sm_minor = sm_arch
 
