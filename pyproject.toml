@@ -3,7 +3,10 @@ requires = [ "flit_core >=3.11,<4" ]
 build-backend = "flit_core.buildapi"
 
 [tool.uv]
-dev-dependencies = [
+package = true
+
+[dependency-groups]
+dev = [
     "packaging",
     "flit",
     "flit_core",
@@ -28,6 +31,11 @@ maintainers = [
     { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
 ]
 dynamic = ["version", "description"]
+
+[project.urls]
+"Homepage" = "https://pypi.org/project/nvidia-variant-provider/"
+"Bug Reports" = "https://github.com/wheelnext/nvidia-variant-provider/issues"
+"Source" = "https://github.com/wheelnext/nvidia-variant-provider"
 
 
 [project.entry-points.variant_plugins]

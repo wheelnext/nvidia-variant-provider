@@ -64,7 +64,7 @@
             ]
         }
     },
-    "postCreateCommand": "uv sync",
+    "postCreateCommand": "uv sync --dev --all-extras",
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": {
             "username": "nvidia",

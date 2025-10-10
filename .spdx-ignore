@@ -1,0 +1,21 @@
+LICENSE
+Makefile
+*.html
+*.toml
+*.yaml
+*.json
+*.md
+*.png
+uv.lock
+.gitmodules
+.gitignore
+
+# Folders
+.devcontainer/
+.github/
+.git/
+dist/
+docs/
+
+# Vendored
+nvidia_variant_provider/vendor/
