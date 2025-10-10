@@ -10,8 +10,6 @@ clean-build: ## remove build artifacts
 	rm -fr build/
 	rm -fr dist/
 	rm -fr .eggs/
-	find . -name '*.egg-info' -exec rm -fr {} +
-	find . -name '*.egg' -exec rm -f {} +
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
@@ -62,14 +60,3 @@ build: clean ## builds source and wheel package
 	ls -l dist
 	cp dist/*.whl docs/nvidia-variant-provider/
 	sha256sum docs/nvidia-variant-provider/*.whl
-
-publish: build
-	pip install --upgrade twine
-	twine upload --config-file=.pypirc dist/*.whl
-
-# ============================================================================ #
-# INSTALL COMMANDS
-# ============================================================================ #
-
-install: clean ## install the package to the active Python's site-packages
-	pip install -e "."
