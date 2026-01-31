@@ -21,7 +21,7 @@ name = "nvidia-variant-provider"
 dependencies = []
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Jonathan Dekhtiar", email = "jonathan@dekhtiar.com" },
     { name = "Michael Sarahan", email = "msarahan@nvidia.com" },
