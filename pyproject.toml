@@ -51,7 +51,7 @@ test = [
 
 
 [project.entry-points.variant_plugins]
-nvidia_variant_provider = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"
+nvidia = "nvidia_variant_provider.plugin:NvidiaVariantPlugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/"]
